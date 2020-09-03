@@ -80,7 +80,7 @@ def main():
     filtered_json = tableProcessing(api)
 
     # Create the GIS connection
-    gis = GIS("https://arcgis.com")
+    gis = GIS(profile='AGOL)
     logger.info("logged in as {}".format(gis.users.me.username))
 
     logger.info("Getting layer from AGOL")
