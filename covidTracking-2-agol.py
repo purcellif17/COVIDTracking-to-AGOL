@@ -59,8 +59,40 @@ def updateFeatures(lyr,filtered_json):
     update_features = []
 
     for field in filtered_json['data']:
+        valid = datetime.strptime(field['date'],'%Y%m%d')
         attributes = {
-            'date': field['date']
+            'state': field['state'],
+            'dataQualityGrade': field['dataQualityGrade'],
+            'death': field['death'],
+            'deathConfirmed': field['deathConfirmed'],
+            'deathIncrease': field['deathIncrease'],
+            'deathProbable': field['deathProbable'],
+            'hospitalized': field['hospitalized'],
+            'hospitalizedCumulative': field['hospitalizedCumulative'],
+            'hospitalizedCurrently': field['hospitalizedCurrently'],
+            'hospitalizedChange': field['hospitalizedChange'],
+            'hospitalized7day': field['hospitalized7day'],
+            'inIcuCumulative': field['inICUCumulative'],
+            'inIcuCurrently': field['inIcuCurrently'],
+            'negative': field['negative'],
+            'dailyNeg': field['dailyNeg'],
+            'onVentilatorCumulative': field['onVentilatorCumulative'],
+            'onVentilatorCurrently': field['onVentilatorCurrently'],
+            'pending': field['pending'],
+            'positive': field['positive'],
+            'positiveScore': field['positiveScore'],
+            'dailyPos': field['dailyPos'],
+            'pctPos': field['pctPos'],
+            'pctPosCum': field['pctPosCum'],
+            'pctPos7day': field['pctPos7day'],
+            'pctPos2wkAgo': field['pctPos2wkAgo'],
+            'recovered': field['recovered'],
+            'totalTestResults': field['totalTestResults'],
+            'totalTestResultsIncrease': field['totalTestResultsIncrease'],
+            'dailyTot': field['dailyTot'],
+            'avgTest7day': field['avgTest7day'],
+            'avgTest2wkAgo': field['avgTest2wkAgo'],
+            'valid': valid
         }
 
         f = {
