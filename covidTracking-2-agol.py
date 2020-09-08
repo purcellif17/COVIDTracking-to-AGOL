@@ -9,27 +9,20 @@ import configparser
 import logging.config
 
 fileLocation = os.path.abspath(os.path.dirname(__file__))
-logFilename = '{}.log'.format(os.path.join(fileLocation,'covidTracking2agol'))
-logging.config.fileConfig(os.path.join(fileLocation,'logging.ini'), defaults={'logfilename': logFilename})
-
-logger = logging.getLogger()
-config = configparser.ConfigParser()
-config.read(os.path.join(fileLocation,'config.ini'))
 
 def covidTrackingAPI():
     import requests
 
-    logger.info('Getting data from CovidTracking.com...')
+    print('Getting data from CovidTracking.com...')
     tracking_API = 'https://covidtracking.com//api//v1//states//daily.json'
-    covidTracking = requests.get(tracking_API).json
-    logger.debug(covidTracking)
+    covidTracking = requests.get(tracking_API).json()
 
     return covidTracking
 
 def tableProcessing(api):
     import pandas as pd
 
-    logger.info('Preparing the data for AGOL...')
+    print('Preparing the data for AGOL...')
     df = pd.read_json(json.dumps(api))
     df = df.sort_values(by=['date'], ascending=True)
 
@@ -59,7 +52,7 @@ def updateFeatures(lyr,filtered_json):
     update_features = []
 
     for field in filtered_json['data']:
-        valid = datetime.strptime(field['date'],'%Y%m%d')
+        valid = datetime.strptime(str(field['date']),'%Y%m%d')
         attributes = {
             'state': field['state'],
             'dataQualityGrade': field['dataQualityGrade'],
@@ -72,7 +65,7 @@ def updateFeatures(lyr,filtered_json):
             'hospitalizedCurrently': field['hospitalizedCurrently'],
             'hospitalizedChange': field['hospitalizedChange'],
             'hospitalized7day': field['hospitalized7day'],
-            'inIcuCumulative': field['inICUCumulative'],
+            'inIcuCumulative': field['inIcuCumulative'],
             'inIcuCurrently': field['inIcuCurrently'],
             'negative': field['negative'],
             'dailyNeg': field['dailyNeg'],
@@ -102,8 +95,8 @@ def updateFeatures(lyr,filtered_json):
     return update_features
 
 def main():
+    # Start counter
     dtStart = datetime.now()
-    logger.setLevel(logging.INFO)
 
     # Call the API
     api = covidTrackingAPI()
@@ -113,12 +106,12 @@ def main():
 
     # Create the GIS connection
     gis = GIS(profile='AGOL')
-    logger.info("logged in as {}".format(gis.users.me.username))
+    print("logged in as {}".format(gis.users.me.username))
 
-    logger.info("Getting layer from AGOL")
+    print("Getting layer from AGOL")
 
     # Variable for the hosted feature service ID, modify if the hosted feature service changes
-    fcId = config.get('feature_layer_ids','covid_tracking')
+    fcId = 'fa8f69c34bc8418cad7ba9e0cfa6b568'
 
     # Load the cases table from AGOL
     table = gis.content.get(fcId).tables[0]
@@ -126,14 +119,14 @@ def main():
     tableCases = updateFeatures(table,filtered_json)
 
     #Commit the edits to the feature service
-    logger.info("Appending updated features")
+    print("Appending updated features")
     # Removes previous records since data is updated retroactively
     table.manager.truncate()
     table.edit_features(adds=tableCases)
 
-    logger.info("All data updated")
+    print("All data updated")
     script_run = datetime.now() - dtStart
-    logger.info("Script run time: {}".format(script_run))
-    logger.info("SCRIPT COMPLETE")
+    print("Script run time: {}".format(script_run))
+    print("SCRIPT COMPLETE")
 
 main()
