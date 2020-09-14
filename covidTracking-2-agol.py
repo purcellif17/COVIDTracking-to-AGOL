@@ -8,7 +8,7 @@ import json
 import logging
 
 fileLocation = os.path.abspath(os.path.dirname(__file__))
-logging.basicConfig(filename='logs.log',filemode='w',format='%(asctime)s | %(lineno)s | %(levelname)s | %(message)s',level=logging.INFO)
+logging.basicConfig(filename='logs.log',filemode='a',format='%(asctime)s | %(lineno)s | %(levelname)s | %(message)s',level=logging.INFO)
 
 def covidTrackingAPI():
     try:
@@ -53,8 +53,10 @@ def tableProcessing(api):
 
     except Exception:
         logging.error("There was an error calculating data.", exc_info=True)
-def updateFeatures(lyr,filtered_json):
+
+def buildUpdates(lyr,filtered_json,current_data):
     try:
+        add_features = []
         update_features = []
 
         for field in filtered_json['data']:
@@ -97,8 +99,11 @@ def updateFeatures(lyr,filtered_json):
             f = {
                 'attributes': attributes
             }
-            update_features.append(f)
-        return update_features
+            if valid not in current_data:
+                add_features.append(f)
+            else:
+                update_features.append(f)
+        return add_features, update_features
     except Exception:
         logging.error('There was an error bulding the field map', exc_info=True)
 
@@ -126,19 +131,28 @@ def main():
     except Exception:
         logging.error('There was an error accessing the feature on AGOL.', exc_info=True)
 
-    tableCases = updateFeatures(table,filtered_json)
-
     try:
         #Commit the edits to the feature service
-        logging.info("Appending updated features")
+        logging.info("Getting updated features")
         # Removes previous records since data is updated retroactively
-        table.manager.truncate()
-        table.edit_features(adds=tableCases)
+        query = table.query(where='1=1',return_geometry=False,out_fields='*')
+        current_data = []
+        for attribute in query:
+            date = datetime.fromtimestamp((attribute.attributes['valid']/1000))
+            if date not in current_data:
+                current_data.append(date)
+
+        add_features, update_features = buildUpdates(table,filtered_json,current_data)
+
+        logging.info("Appending {} new records".format(len(add_features)))
+        table.edit_features(adds=add_features)
+        logging.info("Updating {} records".format(len(update_features)))
+        table.edit_features(updates=update_features)
 
         logging.info("All data updated")
     except Exception:
         logging.error('There was an error appending the data to the table on AGOL.', exc_info=True)
-
+        print(Exception)
     script_run = datetime.now() - dtStart
     logging.info("Script run time: {}".format(script_run))
     logging.info("SCRIPT COMPLETE\n")
