@@ -22,7 +22,7 @@ def covidTrackingAPI():
     except Exception:
         logging.error("There was an error retrieving data from COVIDTracking.com", exc_info=True)
 
-def tableProcessing(api):
+def tableProcessing(api,qry):
     try:
         import pandas as pd
 
@@ -47,6 +47,17 @@ def tableProcessing(api):
         df['avgTest2wkAgo'] = df.groupby('state')['avgTest7day'].apply(lambda x: x.shift(14))
         df['pctPos2wkAgo'] = df.groupby('state')['pctPos7day'].apply(lambda x: x.shift(14))
 
+        lyr_df = qry.sdf
+        lyr_df = lyr_df[['date','state','ObjectId']]
+        df['date'] = df['date'].astype(str)
+        df = pd.merge(df,lyr_df,how='outer',on=['date','state'])
+        try:
+            today = datetime.today()
+        except:
+            today = datetime.datetime.today()
+        df['valid']=pd.tod_datetime(df['lastUpdateEt'],errors='coerce')
+        df = df[df['valid'] >= today - pd.Timedelta(days=30)]
+
         filtered_json = json.loads(df.to_json(orient='table'))
 
         return filtered_json
@@ -54,7 +65,7 @@ def tableProcessing(api):
     except Exception:
         logging.error("There was an error calculating data.", exc_info=True)
 
-def buildUpdates(lyr,filtered_json,current_data):
+def buildUpdates(lyr,filtered_json):
     try:
         add_features = []
         update_features = []
@@ -95,14 +106,14 @@ def buildUpdates(lyr,filtered_json,current_data):
                 'avgTest2wkAgo': field['avgTest2wkAgo'],
                 'valid': valid
             }
-
             f = {
                 'attributes': attributes
             }
-            if valid not in current_data:
-                add_features.append(f)
-            else:
+            if field['ObjectId'] is not None:
                 update_features.append(f)
+            else:
+                add_features.append(f)
+                
         return add_features, update_features
     except Exception:
         logging.error('There was an error bulding the field map', exc_info=True)
@@ -115,8 +126,6 @@ def main():
     # Call the API
     api = covidTrackingAPI()
 
-    # Process the table
-    filtered_json = tableProcessing(api)
     try:
         # Create the GIS connection
         gis = GIS(profile='AGOL')
@@ -136,23 +145,27 @@ def main():
         logging.info("Getting updated features")
         # Removes previous records since data is updated retroactively
         query = table.query(where='1=1',return_geometry=False,out_fields='*')
-        current_data = []
-        for attribute in query:
-            date = datetime.fromtimestamp((attribute.attributes['valid']/1000))
-            if date not in current_data:
-                current_data.append(date)
 
-        add_features, update_features = buildUpdates(table,filtered_json,current_data)
+        # Process the table
+        filtered_json = tableProcessing(api,query)
+        add_features, update_features = buildUpdates(table,filtered_json)
 
-        logging.info("Appending {} new records".format(len(add_features)))
-        table.edit_features(adds=add_features)
-        logging.info("Updating {} records".format(len(update_features)))
-        table.edit_features(updates=update_features)
+        # Commit edits
+        if len(update_features) > 0:
+            logging.info("Updating {} records".format(len(update_features)))
+            table.edit_features(updates=update_features)
+        else:
+            logging.info("No updates available. Please verify table is populated and COVIDTracking API is up.")
+
+        if len(add_features) > 0:
+            logging.info("Appending {} new records".format(len(add_features)))
+            table.edit_features(adds=add_features)
+        else:
+            logging.info("No new records")
 
         logging.info("All data updated")
     except Exception:
         logging.error('There was an error appending the data to the table on AGOL.', exc_info=True)
-        print(Exception)
     script_run = datetime.now() - dtStart
     logging.info("Script run time: {}".format(script_run))
     logging.info("SCRIPT COMPLETE\n")
